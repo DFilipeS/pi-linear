@@ -4,5 +4,10 @@
   "type": "module",
   "dependencies": {
     "@linear/sdk": "^39.0.0"
+  },
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
   }
 }
