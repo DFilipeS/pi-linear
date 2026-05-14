@@ -1,0 +1,8 @@
+{
+  "name": "pi-linear",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@linear/sdk": "^39.0.0"
+  }
+}
