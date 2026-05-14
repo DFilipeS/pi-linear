@@ -4,13 +4,14 @@
  * Provides a single `linear` tool for managing Linear projects, milestones,
  * issues, and comments via the Linear TypeScript SDK.
  *
- * Auth: Set LINEAR_API_KEY env var, or run /linear-auth to set it.
+ * Auth: Set LINEAR_API_KEY env var, or run /linear-auth to persist a key.
  */
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { Type } from "typebox";
 import { StringEnum } from "@earendil-works/pi-ai";
-import { resetClient, getClient } from "./client.js";
+import { LinearClient } from "@linear/sdk";
+import { resetClient, getClient, storeKey } from "./client.js";
 import { executeAction } from "./actions.js";
 
 const ACTIONS = [

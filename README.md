@@ -10,17 +10,21 @@ Go to **Linear → Settings → Account → Security → Personal API keys** and
 
 ### 2. Set the API key
 
-Option A — Environment variable (recommended):
+Option A — Persistent (recommended):
+
+```
+/linear-auth lin_api_xxx
+```
+
+Stores the key in `~/.pi/agent/linear.json`. Verified immediately.
+
+Option B — Environment variable:
 
 ```bash
 export LINEAR_API_KEY="lin_api_xxx"
 ```
 
-Option B — Pi command:
-
-```
-/linear-auth lin_api_xxx
-```
+The env var takes precedence over the stored key.
 
 ### 3. Install the extension
 
