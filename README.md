@@ -16,7 +16,7 @@ Option A — Persistent (recommended):
 /linear-auth lin_api_xxx
 ```
 
-Stores the key in `~/.pi/agent/linear.json`. Verified immediately.
+Stores the key in `~/.pi/agent/settings.json` (`linearApiKey`). Verified immediately.
 
 Option B — Environment variable:
 

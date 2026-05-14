@@ -124,13 +124,12 @@ export default function linearExtension(pi: ExtensionAPI) {
         );
         return;
       }
-      process.env.LINEAR_API_KEY = key;
-      resetClient();
-
-      // Verify the key works
+      // Verify the key works before storing
       try {
-        const client = getClient();
-        const viewer = await client.viewer;
+        const tempClient = new LinearClient({ apiKey: key });
+        const viewer = await tempClient.viewer;
+        storeKey(key);
+        resetClient();
         ctx.ui.notify(
           `Connected to Linear as ${viewer.name} (${viewer.email})`,
           "success"

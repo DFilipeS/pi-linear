@@ -1,26 +1,30 @@
-import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { LinearClient } from "@linear/sdk";
 
-const AUTH_FILE = join(homedir(), ".pi", "agent", "linear.json");
+const SETTINGS_FILE = join(homedir(), ".pi", "agent", "settings.json");
 
 let client: LinearClient | null = null;
 let cachedViewerId: string | null = null;
 let cachedViewerName: string | null = null;
 
-function readStoredKey(): string | null {
+function readSettings(): Record<string, unknown> {
   try {
-    const data = JSON.parse(readFileSync(AUTH_FILE, "utf-8"));
-    return data.apiKey ?? null;
+    return JSON.parse(readFileSync(SETTINGS_FILE, "utf-8"));
   } catch {
-    return null;
+    return {};
   }
 }
 
+function readStoredKey(): string | null {
+  return (readSettings().linearApiKey as string) ?? null;
+}
+
 export function storeKey(apiKey: string): void {
-  mkdirSync(join(homedir(), ".pi", "agent"), { recursive: true });
-  writeFileSync(AUTH_FILE, JSON.stringify({ apiKey }, null, 2), "utf-8");
+  const settings = readSettings();
+  settings.linearApiKey = apiKey;
+  writeFileSync(SETTINGS_FILE, JSON.stringify(settings, null, 2) + "\n", "utf-8");
 }
 
 export function resolveApiKey(): string | null {
