@@ -28,12 +28,10 @@ The env var takes precedence over the stored key.
 
 ### 3. Install the extension
 
-Add to `~/.pi/agent/settings.json`:
+Install with:
 
-```json
-{
-  "extensions": ["/Users/daniel/Developer/pi-linear/src/index.ts"]
-}
+```bash
+pi install git:github.com/DFilipeS/pi-linear
 ```
 
 Or run Pi with:
@@ -46,21 +44,21 @@ pi -e /Users/daniel/Developer/pi-linear/src/index.ts
 
 The extension registers a single `linear` tool with 13 actions:
 
-| Action | Description |
-|--------|-------------|
-| `get_teams` | List teams with workflow states and labels |
-| `search_issues` | Search issues by text, status, assignee, project, etc. |
-| `get_issue` | Get full issue details with comments |
-| `create_issue` | Create a new issue |
-| `update_issue` | Update status, assignee, priority, labels, etc. |
-| `create_comment` | Add a comment to an issue |
-| `list_projects` | List projects with optional team filter |
-| `get_project` | Get project details with milestones |
-| `create_project` | Create a new project |
-| `update_project` | Update project status, lead, dates, etc. |
-| `list_milestones` | List milestones for a project |
-| `create_milestone` | Create a project milestone |
-| `update_milestone` | Update a milestone |
+| Action             | Description                                            |
+| ------------------ | ------------------------------------------------------ |
+| `get_teams`        | List teams with workflow states and labels             |
+| `search_issues`    | Search issues by text, status, assignee, project, etc. |
+| `get_issue`        | Get full issue details with comments                   |
+| `create_issue`     | Create a new issue                                     |
+| `update_issue`     | Update status, assignee, priority, labels, etc.        |
+| `create_comment`   | Add a comment to an issue                              |
+| `list_projects`    | List projects with optional team filter                |
+| `get_project`      | Get project details with milestones                    |
+| `create_project`   | Create a new project                                   |
+| `update_project`   | Update project status, lead, dates, etc.               |
+| `list_milestones`  | List milestones for a project                          |
+| `create_milestone` | Create a project milestone                             |
+| `update_milestone` | Update a milestone                                     |
 
 ### Examples
 
@@ -84,7 +82,6 @@ Pi: [linear list_projects] → Shows projects with progress
 ## Development
 
 ```bash
-cd /Users/daniel/Developer/pi-linear
 npm install
 ```
 
