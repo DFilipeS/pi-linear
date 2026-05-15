@@ -10,6 +10,7 @@ import {
   priorityLabel,
   type IssueSummary,
   type IssueDetail,
+  type IssueRelationSummary,
   type ProjectSummary,
   type ProjectDetail,
   type MilestoneSummary,
@@ -51,6 +52,10 @@ export async function executeAction(
       return createMilestone(params);
     case "update_milestone":
       return updateMilestone(params);
+    case "create_issue_relation":
+      return createIssueRelation(params);
+    case "delete_issue_relation":
+      return deleteIssueRelation(params);
     default:
       throw new Error(`Unknown linear action: ${action}`);
   }
@@ -165,7 +170,7 @@ async function getIssue(params: Record<string, unknown>): Promise<ActionResult> 
   const id = required(params.id, "id");
   const issue = await client.issue(id);
 
-  const [assignee, state, labelsConn, commentsConn, team, project, milestone] =
+  const [assignee, state, labelsConn, commentsConn, team, project, milestone, relationsConn, inverseRelationsConn] =
     await Promise.all([
       issue.assignee,
       issue.state,
@@ -174,6 +179,8 @@ async function getIssue(params: Record<string, unknown>): Promise<ActionResult> 
       issue.team,
       issue.project,
       issue.projectMilestone,
+      issue.relations(),
+      issue.inverseRelations(),
     ]);
 
   const comments = await Promise.all(
@@ -183,6 +190,32 @@ async function getIssue(params: Record<string, unknown>): Promise<ActionResult> 
         body: c.body ?? "",
         userName: user?.name ?? "Unknown",
         createdAt: formatDate(c.createdAt),
+      };
+    })
+  );
+
+  const relations: IssueRelationSummary[] = await Promise.all(
+    relationsConn.nodes.map(async (r): Promise<IssueRelationSummary> => {
+      const relatedIssue = await r.relatedIssue;
+      return {
+        id: r.id,
+        type: r.type,
+        relatedIssueId: r.relatedIssueId ?? "",
+        relatedIssueIdentifier: relatedIssue?.identifier ?? "",
+        relatedIssueTitle: relatedIssue?.title ?? "",
+      };
+    })
+  );
+
+  const inverseRelations: IssueRelationSummary[] = await Promise.all(
+    inverseRelationsConn.nodes.map(async (r): Promise<IssueRelationSummary> => {
+      const relatedIssue = await r.relatedIssue;
+      return {
+        id: r.id,
+        type: r.type,
+        relatedIssueId: r.relatedIssueId ?? "",
+        relatedIssueIdentifier: relatedIssue?.identifier ?? "",
+        relatedIssueTitle: relatedIssue?.title ?? "",
       };
     })
   );
@@ -203,6 +236,8 @@ async function getIssue(params: Record<string, unknown>): Promise<ActionResult> 
     createdAt: formatDate(issue.createdAt),
     updatedAt: formatDate(issue.updatedAt),
     url: issue.url,
+    relations,
+    inverseRelations,
     comments,
   };
 
@@ -242,6 +277,38 @@ async function createIssue(params: Record<string, unknown>): Promise<ActionResul
   // Re-fetch for full data (mutation only returns id)
   const issue = await client.issue(issueRef.id);
 
+  // Create issue relations for blockers
+  const blockedByIssueIds = params.blockedByIssueIds as string[] | undefined;
+  const blocksIssueIds = params.blocksIssueIds as string[] | undefined;
+  const relationPromises: Promise<unknown>[] = [];
+  if (blockedByIssueIds && Array.isArray(blockedByIssueIds)) {
+    for (const blockedById of blockedByIssueIds) {
+      // This issue is blocked by blockedById → the other issue blocks this one
+      relationPromises.push(
+        client.createIssueRelation({
+          issueId: String(blockedById),
+          relatedIssueId: issueRef.id,
+          type: "blocks" as any,
+        })
+      );
+    }
+  }
+  if (blocksIssueIds && Array.isArray(blocksIssueIds)) {
+    for (const blocksId of blocksIssueIds) {
+      // This issue blocks blocksId
+      relationPromises.push(
+        client.createIssueRelation({
+          issueId: issueRef.id,
+          relatedIssueId: String(blocksId),
+          type: "blocks" as any,
+        })
+      );
+    }
+  }
+  if (relationPromises.length > 0) {
+    await Promise.all(relationPromises);
+  }
+
   const [state, assignee] = await Promise.all([issue.state, issue.assignee]);
 
   const result = {
@@ -254,8 +321,12 @@ async function createIssue(params: Record<string, unknown>): Promise<ActionResul
     url: issue.url,
   };
 
+  const relationInfo = relationPromises.length > 0
+    ? `\nRelations created: ${relationPromises.length} issue relation(s)`
+    : "";
+
   return {
-    content: `Created issue ${result.identifier}: ${result.title}\nStatus: ${result.stateName} | Priority: ${priorityLabel(result.priority)} | Assignee: ${result.assigneeName ?? "Unassigned"}\nURL: ${result.url}`,
+    content: `Created issue ${result.identifier}: ${result.title}\nStatus: ${result.stateName} | Priority: ${priorityLabel(result.priority)} | Assignee: ${result.assigneeName ?? "Unassigned"}${relationInfo}\nURL: ${result.url}`,
     details: { issue: result },
   };
 }
@@ -281,7 +352,37 @@ async function updateIssue(params: Record<string, unknown>): Promise<ActionResul
   // Explicitly support unassigning
   if (params.assigneeId === null) input.assigneeId = null;
 
-  if (Object.keys(input).length === 0) {
+  // Handle issue relation changes
+  const blockedByIssueIds = params.blockedByIssueIds as string[] | undefined;
+  const blocksIssueIds = params.blocksIssueIds as string[] | undefined;
+  const relationPromises: Promise<unknown>[] = [];
+  if (blockedByIssueIds && Array.isArray(blockedByIssueIds)) {
+    for (const blockedById of blockedByIssueIds) {
+      relationPromises.push(
+        client.createIssueRelation({
+          issueId: String(blockedById),
+          relatedIssueId: id,
+          type: "blocks" as any,
+        })
+      );
+    }
+  }
+  if (blocksIssueIds && Array.isArray(blocksIssueIds)) {
+    for (const blocksId of blocksIssueIds) {
+      relationPromises.push(
+        client.createIssueRelation({
+          issueId: id,
+          relatedIssueId: String(blocksId),
+          type: "blocks" as any,
+        })
+      );
+    }
+  }
+  if (relationPromises.length > 0) {
+    await Promise.all(relationPromises);
+  }
+
+  if (Object.keys(input).length === 0 && relationPromises.length === 0) {
     return {
       content: "No fields provided to update.",
       details: {},
@@ -307,9 +408,12 @@ async function updateIssue(params: Record<string, unknown>): Promise<ActionResul
   const changes = Object.keys(input)
     .map((k) => `${k}: ${JSON.stringify(input[k])}`)
     .join(", ");
+  const relationInfo = relationPromises.length > 0
+    ? `\nRelations created: ${relationPromises.length} issue relation(s)`
+    : "";
 
   return {
-    content: `Updated ${result.identifier}: ${result.title}\nChanges: ${changes}\nStatus: ${result.stateName} | Priority: ${priorityLabel(result.priority)} | Assignee: ${result.assigneeName ?? "Unassigned"}\nURL: ${result.url}`,
+    content: `Updated ${result.identifier}: ${result.title}\nChanges: ${changes}${relationInfo}\nStatus: ${result.stateName} | Priority: ${priorityLabel(result.priority)} | Assignee: ${result.assigneeName ?? "Unassigned"}\nURL: ${result.url}`,
     details: { issue: result, changes: input },
   };
 }
@@ -361,6 +465,7 @@ async function listProjects(params: Record<string, unknown>): Promise<ActionResu
         id: project.id,
         name: project.name,
         description: project.description ?? "",
+        content: project.content ?? null,
         statusName: status?.name ?? "Unknown",
         leadName: lead?.name ?? null,
         priority: project.priority,
@@ -395,6 +500,7 @@ async function getProject(params: Record<string, unknown>): Promise<ActionResult
     id: project.id,
     name: project.name,
     description: project.description ?? "",
+    content: project.content ?? null,
     statusName: status?.name ?? "Unknown",
     leadName: lead?.name ?? null,
     priority: project.priority,
@@ -402,7 +508,6 @@ async function getProject(params: Record<string, unknown>): Promise<ActionResult
     startDate: formatDate(project.startDate),
     targetDate: formatDate(project.targetDate),
     teamKeys: teamsConn?.nodes?.map((t) => t.key) ?? [],
-    content: project.content ?? null,
     url: (project as any).url ?? "",
     milestones: (milestonesConn as any)?.nodes?.map((m: any) => ({
       id: m.id,
@@ -431,6 +536,7 @@ async function createProject(params: Record<string, unknown>): Promise<ActionRes
     teamIds: Array.isArray(teamIds) ? teamIds : [teamIds],
   };
   if (params.description) input.description = String(params.description);
+  if (params.content) input.content = String(params.content);
   if (leadId) input.leadId = leadId;
   if (params.startDate) input.startDate = String(params.startDate);
   if (params.targetDate) input.targetDate = String(params.targetDate);
@@ -461,6 +567,7 @@ async function updateProject(params: Record<string, unknown>): Promise<ActionRes
   const input: Record<string, unknown> = {};
   maybeSet(input, params, "name");
   maybeSet(input, params, "description");
+  maybeSet(input, params, "content");
   maybeSet(input, params, "startDate");
   maybeSet(input, params, "targetDate");
   maybeSet(input, params, "statusId");
@@ -556,6 +663,62 @@ async function updateMilestone(params: Record<string, unknown>): Promise<ActionR
   return {
     content: `Updated milestone: ${milestone.name} (id: ${milestone.id})`,
     details: { milestone: { id: milestone.id, name: milestone.name }, changes: input },
+  };
+}
+
+// ── Issue Relations ────────────────────────────────────────────────────
+
+async function createIssueRelation(params: Record<string, unknown>): Promise<ActionResult> {
+  const client = getClient();
+  const issueId = required(params.issueId, "issueId");
+  const relatedIssueId = required(params.relatedIssueId, "relatedIssueId");
+  const type = required(params.type, "type");
+
+  const validTypes = ["blocks", "duplicate", "related", "similar"];
+  if (!validTypes.includes(type)) {
+    throw new Error(`Invalid relation type: ${type}. Must be one of: ${validTypes.join(", ")}`);
+  }
+
+  const payload = await client.createIssueRelation({
+    issueId,
+    relatedIssueId,
+    type: type as any,
+  });
+
+  if (!payload.success) {
+    return { content: "Failed to create issue relation.", details: {} };
+  }
+
+  // Resolve identifiers for display
+  const [issue, relatedIssue] = await Promise.all([
+    client.issue(issueId),
+    client.issue(relatedIssueId),
+  ]);
+
+  const typeLabel = type === "blocks" ? "blocks" : type;
+
+  return {
+    content: `Created relation: ${issue.identifier} ${typeLabel} ${relatedIssue.identifier}`,
+    details: {
+      success: true,
+      relation: { issueId, relatedIssueId, type },
+    },
+  };
+}
+
+async function deleteIssueRelation(params: Record<string, unknown>): Promise<ActionResult> {
+  const client = getClient();
+  const id = required(params.id, "id");
+
+  const payload = await client.deleteIssueRelation(id);
+
+  if (!payload.success) {
+    return { content: "Failed to delete issue relation.", details: {} };
+  }
+
+  return {
+    content: `Deleted issue relation (id: ${id}).`,
+    details: { success: true, id },
   };
 }
 

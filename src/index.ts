@@ -28,6 +28,8 @@ const ACTIONS = [
   "list_milestones",
   "create_milestone",
   "update_milestone",
+  "create_issue_relation",
+  "delete_issue_relation",
 ] as const;
 
 const TOOL_DESCRIPTION = `Manage Linear (linear.app) — projects, milestones, issues, and comments.
@@ -38,21 +40,25 @@ Actions and their parameters:
 
 **search_issues** — Search issues. Params: query (text search in title/description), teamId, assigneeId ("me" = yourself), status (state name like "In Progress", "Done"), projectId, priority (0=No priority, 1=Urgent, 2=High, 3=Medium, 4=Low), first (max results, default 25), includeArchived (boolean).
 
-**get_issue** — Full issue details with description and comments. Params: id (issue identifier like "BE-123" or UUID).
+**get_issue** — Full issue details with description, comments, and relations (blockers/blocked by). Params: id (issue identifier like "BE-123" or UUID).
 
-**create_issue** — Create an issue. Params: teamId (required), title (required), description, priority (0-4), assigneeId ("me"), stateId, labelIds (array of IDs), projectId, projectMilestoneId, dueDate (YYYY-MM-DD), parentId (sub-issue).
+**create_issue** — Create an issue. Params: teamId (required), title (required), description (markdown), priority (0-4), assigneeId ("me"), stateId, labelIds (array of IDs), projectId, projectMilestoneId, dueDate (YYYY-MM-DD), parentId (sub-issue), blockedByIssueIds (array of issue IDs that block this issue), blocksIssueIds (array of issue IDs that this issue blocks).
 
-**update_issue** — Update issue (change status, assignee, priority, etc.). Params: id (required), title, description, priority (0-4), assigneeId ("me" or null to unassign), stateId, labelIds (array, replaces all), projectId, projectMilestoneId, dueDate.
+**update_issue** — Update issue (change status, assignee, priority, etc.). Params: id (required), title, description, priority (0-4), assigneeId ("me" or null to unassign), stateId, labelIds (array, replaces all), projectId, projectMilestoneId, dueDate, blockedByIssueIds (array — adds blocking relations), blocksIssueIds (array — adds blocking relations).
 
 **create_comment** — Add comment to issue. Params: issueId (required), body (required, markdown).
+
+**create_issue_relation** — Create a relation between two issues. Params: issueId (required), relatedIssueId (required), type (required — "blocks", "duplicate", "related", or "similar"). For blockers: the issue with issueId blocks the issue with relatedIssueId.
+
+**delete_issue_relation** — Delete an issue relation. Params: id (required, relation ID from get_issue).
 
 **list_projects** — List projects. Params: teamId, first (default 25), includeArchived (boolean).
 
 **get_project** — Project details with milestones. Params: id (required).
 
-**create_project** — Create project. Params: name (required), teamIds (required, array of team IDs), description, leadId ("me"), startDate (YYYY-MM-DD), targetDate (YYYY-MM-DD), statusId, priority (0-4).
+**create_project** — Create project. Params: name (required), teamIds (required, array of team IDs), description (short summary, max 255 chars), content (long-form markdown description), leadId ("me"), startDate (YYYY-MM-DD), targetDate (YYYY-MM-DD), statusId, priority (0-4).
 
-**update_project** — Update project. Params: id (required), name, description, leadId, startDate, targetDate, statusId, priority, memberIds (array).
+**update_project** — Update project. Params: id (required), name, description (short summary), content (long-form markdown), leadId, startDate, targetDate, statusId, priority, memberIds (array).
 
 **list_milestones** — List milestones. Params: projectId (required).
 

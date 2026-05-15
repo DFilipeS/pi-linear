@@ -67,6 +67,14 @@ export function formatIssueList(issues: IssueSummary[], totalCount?: number): st
   return header + lines.join("\n");
 }
 
+export interface IssueRelationSummary {
+  id: string;
+  type: string;
+  relatedIssueId: string;
+  relatedIssueIdentifier: string;
+  relatedIssueTitle: string;
+}
+
 export interface IssueDetail extends IssueSummary {
   description: string | null;
   projectName: string | null;
@@ -74,11 +82,24 @@ export interface IssueDetail extends IssueSummary {
   createdAt: string;
   updatedAt: string;
   url: string;
+  relations: IssueRelationSummary[];
+  inverseRelations: IssueRelationSummary[];
   comments: Array<{
     body: string;
     userName: string;
     createdAt: string;
   }>;
+}
+
+function formatRelationType(type: string): string {
+  switch (type) {
+    case "blocks": return "blocks";
+    case "blocked_by": return "blocked by";
+    case "duplicate": return "duplicate of";
+    case "related": return "related to";
+    case "similar": return "similar to";
+    default: return type;
+  }
 }
 
 export function formatIssueDetail(issue: IssueDetail): string {
@@ -91,6 +112,24 @@ export function formatIssueDetail(issue: IssueDetail): string {
   if (issue.milestoneName) lines.push(`Milestone: ${issue.milestoneName}`);
   if (issue.labels.length > 0) lines.push(`Labels: ${issue.labels.join(", ")}`);
   if (issue.dueDate) lines.push(`Due: ${issue.dueDate}`);
+
+  // Show blocking relationships
+  const blocking = issue.relations.filter((r) => r.type === "blocks");
+  const blockedBy = issue.inverseRelations.filter((r) => r.type === "blocks");
+  const otherRelations = [
+    ...issue.relations.filter((r) => r.type !== "blocks"),
+    ...issue.inverseRelations.filter((r) => r.type !== "blocks"),
+  ];
+  if (blocking.length > 0) {
+    lines.push(`Blocks: ${blocking.map((r) => `${r.relatedIssueIdentifier}: ${r.relatedIssueTitle}`).join(", ")}`);
+  }
+  if (blockedBy.length > 0) {
+    lines.push(`Blocked by: ${blockedBy.map((r) => `${r.relatedIssueIdentifier}: ${r.relatedIssueTitle}`).join(", ")}`);
+  }
+  if (otherRelations.length > 0) {
+    lines.push(`Relations: ${otherRelations.map((r) => `${r.relatedIssueIdentifier} (${formatRelationType(r.type)})`).join(", ")}`);
+  }
+
   lines.push(`Created: ${issue.createdAt} | Updated: ${issue.updatedAt}`);
   lines.push(`URL: ${issue.url}`);
 
@@ -117,6 +156,7 @@ export interface ProjectSummary {
   id: string;
   name: string;
   description: string;
+  content: string | null;
   statusName: string;
   leadName: string | null;
   priority: number;
@@ -142,7 +182,6 @@ export function formatProjectList(projects: ProjectSummary[]): string {
 }
 
 export interface ProjectDetail extends ProjectSummary {
-  content: string | null;
   url: string;
   milestones: Array<{
     id: string;
@@ -164,7 +203,13 @@ export function formatProjectDetail(project: ProjectDetail): string {
   }
   if (project.description) {
     lines.push("");
+    lines.push(`## Description`);
     lines.push(project.description);
+  }
+  if (project.content) {
+    lines.push("");
+    lines.push(`## Content`);
+    lines.push(project.content);
   }
   if (project.milestones.length > 0) {
     lines.push("");
